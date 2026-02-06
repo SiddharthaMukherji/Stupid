@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Will You Be My Valentine?</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #ff758c, #ff7eb3);
+      overflow: hidden;
+    }
+
+    .container {
+      text-align: center;
+      background: rgba(255, 255, 255, 0.15);
+      padding: 40px;
+      border-radius: 24px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    h1 {
+      color: white;
+      font-size: 2.5rem;
+      margin-bottom: 40px;
+    }
+
+    .buttons {
+      position: relative;
+      height: 150px;
+    }
+
+    button {
+      border: none;
+      padding: 15px 35px;
+      font-size: 1.2rem;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    button:active {
+      transform: scale(0.95);
+    }
+
+    #yesBtn {
+      background: white;
+      color: #ff4d6d;
+      font-weight: bold;
+      margin-right: 20px;
+    }
+
+    #noBtn {
+      position: fixed;
+      background: #ff4d6d;
+      color: white;
+      left: 60%;
+      top: 40%;
+      z-index: 1000;
+      transition: left 0.18s ease, top 0.18s ease;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    #successMessage {
+      color: white;
+      font-size: 2rem;
+      margin-top: 20px;
+    }
+
+    .photos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 15px;
+      margin-top: 30px;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .photos img {
+      width: 100%;
+      height: 150px;
+      border-radius: 12px;
+      object-fit: cover;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    }
+
+    .cat-image {
+      display: block;
+      margin: 20px auto 0;
+      max-width: 320px;
+      width: 80%;
+      border-radius: 12px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+
+    .audio-controls {
+      margin-top: 18px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    .audio-controls button {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: none;
+      background: rgba(255,255,255,0.15);
+      color: white;
+      cursor: pointer;
+    }
+
+    .heart {
+      position: absolute;
+      color: white;
+      font-size: 20px;
+      animation: floatUp linear forwards;
+    }
+
+    @keyframes floatUp {
+      from {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateY(-100vh);
+        opacity: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 id="question">Anushka, Will You Be My Valentine? ❤️</h1>
+    <div class="buttons" id="buttonContainer">
+      <button id="yesBtn">Yes 💘</button>
+      <button id="noBtn">No 😜</button>
+    </div>
+    <div id="successMessage" class="hidden">
+      <div style="font-size: 4rem; margin-bottom: 20px;">😻😻😻</div>
+      <div style="font-size: 2rem;">That's the best decision of your life! 💕</div>
+      <div style="font-size: 3rem; margin-top: 20px;">😸😻😸</div>
+      
+      <!-- Add your photos here (replace with your image paths) -->
+      <div class="photos">
+        <img src="images/photo1.jpg" alt="Us">
+        <img src="images/photo2.jpg" alt="Together">
+        <img src="images/photo3.jpg" alt="Love">
+      </div>
+
+      <!-- Cat image (place your attached cat image at images/cat.png) -->
+      <img id="catImage" class="cat-image hidden" src="images/cat.png" alt="Happy cat">
+
+      <!-- Audio controls and placeholder file (replace audio/sample.mp3 later) -->
+      <div id="audioControls" class="audio-controls hidden">
+        <audio id="bgm" src="audio/sample.mp3" preload="none"></audio>
+        <button id="playAudioBtn">Play Music</button>
+        <button id="pauseAudioBtn">Pause</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const noBtn = document.getElementById('noBtn');
+    const yesBtn = document.getElementById('yesBtn');
+    const successMessage = document.getElementById('successMessage');
+    const question = document.getElementById('question');
+    const buttonContainer = document.getElementById('buttonContainer');
+    const catImage = document.getElementById('catImage');
+    const audioControls = document.getElementById('audioControls');
+    const bgm = document.getElementById('bgm');
+    const playAudioBtn = document.getElementById('playAudioBtn');
+    const pauseAudioBtn = document.getElementById('pauseAudioBtn');
+    let attemptCount = 0;
+    let lastMoveTime = 0;
+    let mouseListenerActive = true;
+
+    // Move No button when mouse gets close — improved: move away from cursor and clamp
+    document.addEventListener('mousemove', (e) => {
+      if (!mouseListenerActive) return;
+
+      const rect = noBtn.getBoundingClientRect();
+      const noBtnCenterX = rect.left + rect.width / 2;
+      const noBtnCenterY = rect.top + rect.height / 2;
+
+      const distance = Math.hypot(
+        e.clientX - noBtnCenterX,
+        e.clientY - noBtnCenterY
+      );
+
+      // Progressive difficulty: detection radius increases with attempts
+      const detectionRadius = 120 + (attemptCount * 30);
+
+      if (distance < detectionRadius) {
+        const now = Date.now();
+        // Throttle movement to avoid excessive moving
+        if (now - lastMoveTime > 80) {
+          moveButtonAwayFrom(e.clientX, e.clientY);
+          lastMoveTime = now;
+        }
+      }
+    });
+
+    function moveButtonAwayFrom(cursorX, cursorY) {
+      attemptCount = Math.min(attemptCount + 1, 20); // cap attempts
+
+      // Base move distance, scaled but capped to avoid huge jumps
+      const base = 90;
+      const scale = 12; // smaller scale per attempt
+      const moveDistance = Math.min(base + attemptCount * scale, Math.min(window.innerWidth, window.innerHeight) / 3);
+
+      const rect = noBtn.getBoundingClientRect();
+      const btnLeft = rect.left;
+      const btnTop = rect.top;
+      const btnCenterX = btnLeft + rect.width / 2;
+      const btnCenterY = btnTop + rect.height / 2;
+
+      // Direction vector from cursor to button
+      let dx = btnCenterX - cursorX;
+      let dy = btnCenterY - cursorY;
+      const len = Math.hypot(dx, dy) || 1;
+      dx /= len;
+      dy /= len;
+
+      // Proposed new top-left
+      let newLeft = btnLeft + dx * moveDistance;
+      let newTop = btnTop + dy * moveDistance;
+
+      const minMargin = 12;
+      const maxLeft = window.innerWidth - rect.width - minMargin;
+      const maxTop = window.innerHeight - rect.height - minMargin;
+
+      // Clamp inside viewport
+      newLeft = Math.max(minMargin, Math.min(newLeft, maxLeft));
+      newTop = Math.max(minMargin, Math.min(newTop, maxTop));
+
+      // If clamped result is still within a small distance to cursor, move to a safe corner instead
+      const centerAfterX = newLeft + rect.width / 2;
+      const centerAfterY = newTop + rect.height / 2;
+      const distAfter = Math.hypot(centerAfterX - cursorX, centerAfterY - cursorY);
+      const safeDistance = 140 + attemptCount * 10;
+      if (distAfter < safeDistance) {
+        // choose corner away from cursor
+        const preferRight = cursorX < window.innerWidth / 2;
+        const preferBottom = cursorY < window.innerHeight / 2;
+        newLeft = preferRight ? maxLeft : minMargin;
+        newTop = preferBottom ? maxTop : minMargin;
+      }
+
+      noBtn.style.left = Math.round(newLeft) + 'px';
+      noBtn.style.top = Math.round(newTop) + 'px';
+
+      // Update button text to show difficulty level
+      const difficultyEmojis = ['😜', '🤨', '😤', '😠', '🤯'];
+      const emojiIndex = Math.min(attemptCount - 1, difficultyEmojis.length - 1);
+      noBtn.innerText = `No ${difficultyEmojis[emojiIndex]}`;
+    }
+
+    // Yes button click
+    yesBtn.addEventListener('click', async () => {
+      mouseListenerActive = false;
+      question.style.display = 'none';
+      buttonContainer.style.display = 'none';
+      successMessage.classList.remove('hidden');
+
+      // Show cat image and audio controls
+      catImage.classList.remove('hidden');
+      audioControls.classList.remove('hidden');
+
+      // Try to play audio (user gesture from click should allow play)
+      try {
+        if (bgm && bgm.src) {
+          await bgm.play();
+        } else {
+          // If no audio file present, play a small WebAudio melody as fallback
+          playFallbackMelody();
+        }
+      } catch (err) {
+        // If playback fails, use fallback melody
+        playFallbackMelody();
+      }
+
+      startHearts();
+    });
+
+    // Floating hearts animation
+    function startHearts() {
+      setInterval(() => {
+        const heart = document.createElement('div');
+        heart.classList.add('heart');
+        heart.innerText = '❤️';
+        heart.style.left = Math.random() * window.innerWidth + 'px';
+        heart.style.bottom = '-20px';
+        heart.style.animationDuration = (3 + Math.random() * 3) + 's';
+        document.body.appendChild(heart);
+
+        setTimeout(() => heart.remove(), 6000);
+      }, 300);
+    }
+
+    // Mobile support - move button on touch
+    noBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      moveButton();
+    });
+
+    // Audio control buttons
+    playAudioBtn.addEventListener('click', async () => {
+      try {
+        if (bgm && bgm.src) await bgm.play();
+      } catch (e) {
+        playFallbackMelody();
+      }
+    });
+
+    pauseAudioBtn.addEventListener('click', () => {
+      if (bgm) bgm.pause();
+      if (window.fallbackOscillator) {
+        try { window.fallbackOscillator.stop(); } catch(e) {}
+        window.fallbackOscillator = null;
+      }
+    });
+
+    // WebAudio fallback: simple happy melody
+    function playFallbackMelody() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const now = ctx.currentTime;
+        const notes = [523.25, 587.33, 659.25, 783.99]; // C5, D5, E5, G5
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.connect(g);
+        g.connect(ctx.destination);
+        let t = now;
+        notes.forEach((freq, i) => {
+          o.frequency.setValueAtTime(freq, t + i * 0.25);
+        });
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, now + 1.2);
+        o.start(now);
+        o.stop(now + 1.25);
+        window.fallbackOscillator = o;
+      } catch (e) {
+        console.warn('Fallback audio failed', e);
+      }
+    }
+  </script>
+</body>
+</html>
