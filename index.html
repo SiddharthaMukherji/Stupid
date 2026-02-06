@@ -97,10 +97,30 @@
     .cat-image {
       display: block;
       margin: 20px auto 0;
-      max-width: 320px;
+      max-width: 240px;
       width: 80%;
       border-radius: 12px;
       box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+
+    .cat-image-left,
+    .cat-image-right {
+      position: fixed;
+      max-width: 160px;
+      width: 10vw;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 100;
+    }
+
+    .cat-image-left {
+      left: -180px;
+    }
+
+    .cat-image-right {
+      right: -180px;
     }
 
     .audio-controls {
@@ -140,7 +160,7 @@
 </head>
 <body>
   <div class="container">
-    <h1 id="question">Anushka Shukla, Will You Be My Valentine? ❤️</h1>
+    <h1 id="question">Anushka Shukla, Will You Be My Valentine? 👉👈💕 🥺</h1>
     <div class="buttons" id="buttonContainer">
       <button id="yesBtn">Yes 💘</button>
       <button id="noBtn">No 😜</button>
@@ -157,8 +177,9 @@
         <img src="images/4.jpg" alt="Love">
       </div>
 
-      <!-- Cat image (place your attached cat image at images/cat.png) -->
-      <img id="catImage" class="cat-image hidden" src="images/1.jpg" alt="Happy cat">
+      <!-- Cat images on left and right sides -->
+      <img id="catImageLeft" class="cat-image-left hidden" src="images/1a.gif" alt="Happy cat">
+      <img id="catImageRight" class="cat-image-right hidden" src="images/1a.gif" alt="Happy cat">
 
       <!-- Audio controls and placeholder file (replace audio/sample.mp3 later) -->
       <div id="audioControls" class="audio-controls hidden">
@@ -176,6 +197,8 @@
     const question = document.getElementById('question');
     const buttonContainer = document.getElementById('buttonContainer');
     const catImage = document.getElementById('catImage');
+    const catImageLeft = document.getElementById('catImageLeft');
+    const catImageRight = document.getElementById('catImageRight');
     const audioControls = document.getElementById('audioControls');
     const bgm = document.getElementById('bgm');
     const playAudioBtn = document.getElementById('playAudioBtn');
@@ -201,13 +224,13 @@
       );
 
       // Progressive difficulty: detection radius increases with attempts
-      // Much smaller reaction area so the button stays put until very close
-      const detectionRadius = 45 + (attemptCount * 1);
+      // Minimal reaction area — button barely moves until very close
+      const detectionRadius = 30 + (attemptCount * 0.3);
 
       if (distance < detectionRadius) {
         const now = Date.now();
-        // Throttle movement to avoid excessive moving
-        if (now - lastMoveTime > 80) {
+        // Throttle movement to avoid excessive moving (much longer delay)
+        if (now - lastMoveTime > 180) {
           moveButtonAwayFrom(e.clientX, e.clientY);
           lastMoveTime = now;
         }
@@ -224,8 +247,8 @@
       const btnCenterX = btnLeft + rect.width / 2;
       const btnCenterY = btnTop + rect.height / 2;
 
-      // Maximum single-step movement (very small now: ~6-18px)
-      const maxSingleMove = Math.max(6, Math.min(18, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.015)));
+      // Maximum single-step movement (tiny: ~3-8px)
+      const maxSingleMove = Math.max(3, Math.min(8, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.008)));
 
       // Sample candidate positions around the current position and pick the one that
       // maximizes the distance to the cursor while staying within viewport margins.
@@ -249,7 +272,7 @@
       best = evaluateCandidate(best, oppClampedLeft, oppClampedTop, oppCenterX, oppCenterY, cursorX, cursorY);
 
       // random sampling near the button (circle of radius up to maxSingleMove)
-      const samples = 8;
+      const samples = 4;
       for (let i = 0; i < samples; i++) {
         const angle = (i / samples) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
         const r = Math.random() * maxSingleMove * (0.5 + Math.random() * 0.5);
@@ -319,8 +342,9 @@
       buttonContainer.style.display = 'none';
       successMessage.classList.remove('hidden');
 
-      // Show cat image and audio controls
-      catImage.classList.remove('hidden');
+      // Show cat images on left and right and audio controls
+      catImageLeft.classList.remove('hidden');
+      catImageRight.classList.remove('hidden');
       audioControls.classList.remove('hidden');
 
       // Start and loop bgm if present. Use user gesture (click) to allow playback.
