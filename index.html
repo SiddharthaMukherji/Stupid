@@ -257,29 +257,49 @@
       const btnCenterX = btnLeft + rect.width / 2;
       const btnCenterY = btnTop + rect.height / 2;
 
-      // Maximum single-step movement (tiny: ~3-8px)
-      const maxSingleMove = Math.max(3, Math.min(8, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.008)));
+      // Define a SAFE ZONE in the center of the screen where button can ONLY move
+      // This guarantees it never leaves the screen
+      const safeMargin = 200; // much larger margin = smaller movement area
+      const safeMinLeft = safeMargin;
+      const safeMaxLeft = window.innerWidth - rect.width - safeMargin;
+      const safeMinTop = safeMargin;
+      const safeMaxTop = window.innerHeight - rect.height - safeMargin;
 
-      // Sample candidate positions around the current position and pick the one that
-      // maximizes the distance to the cursor while staying within viewport margins.
-      const minMargin = 12;
-      const maxLeft = window.innerWidth - rect.width - minMargin;
-      const maxTop = window.innerHeight - rect.height - minMargin;
+      // Maximum single-step movement (tiny: ~2-5px)
+      const maxSingleMove = Math.max(2, Math.min(5, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.004)));
 
       let best = { left: btnLeft, top: btnTop, dist: Math.hypot(btnCenterX - cursorX, btnCenterY - cursorY) };
 
-      // start with an opposite-vector candidate (away from cursor)
-      let awayDX = (btnCenterX - cursorX) || (Math.random() - 0.5);
-      let awayDY = (btnCenterY - cursorY) || (Math.random() - 0.5);
-      const awayLen = Math.hypot(awayDX, awayDY) || 1;
-      awayDX /= awayLen; awayDY /= awayLen;
-      const oppositeLeft = btnLeft + awayDX * maxSingleMove;
-      const oppositeTop = btnTop + awayDY * maxSingleMove;
-      const oppClampedLeft = Math.max(minMargin, Math.min(oppositeLeft, maxLeft));
-      const oppClampedTop = Math.max(minMargin, Math.min(oppositeTop, maxTop));
-      const oppCenterX = oppClampedLeft + rect.width / 2;
-      const oppCenterY = oppClampedTop + rect.height / 2;
-      best = evaluateCandidate(best, oppClampedLeft, oppClampedTop, oppCenterX, oppCenterY, cursorX, cursorY);
+      // After 2 attempts, jump to random position to avoid corner sticking
+      if (attemptCount > 2) {
+        const randLeft = safeMinLeft + Math.random() * (safeMaxLeft - safeMinLeft);
+        const randTop = safeMinTop + Math.random() * (safeMaxTop - safeMinTop);
+        const randCenterX = randLeft + rect.width / 2;
+        const randCenterY = randTop + rect.height / 2;
+        best = evaluateCandidate(best, randLeft, randTop, randCenterX, randCenterY, cursorX, cursorY);
+      } else {
+        // First 2 attempts: normal away-from-cursor with direction flip
+        let awayDX = (btnCenterX - cursorX) || (Math.random() - 0.5);
+        let awayDY = (btnCenterY - cursorY) || (Math.random() - 0.5);
+        
+        // Flip direction on second attempt to bounce back
+        if (attemptCount === 2) {
+          awayDX = -awayDX;
+          awayDY = -awayDY;
+        }
+        
+        const awayLen = Math.hypot(awayDX, awayDY) || 1;
+        awayDX /= awayLen; awayDY /= awayLen;
+        const oppositeLeft = btnLeft + awayDX * maxSingleMove;
+        const oppositeTop = btnTop + awayDY * maxSingleMove;
+        
+        // CRITICAL: Clamp STRICTLY to safe zone only
+        const oppClampedLeft = Math.max(safeMinLeft, Math.min(oppositeLeft, safeMaxLeft));
+        const oppClampedTop = Math.max(safeMinTop, Math.min(oppositeTop, safeMaxTop));
+        const oppCenterX = oppClampedLeft + rect.width / 2;
+        const oppCenterY = oppClampedTop + rect.height / 2;
+        best = evaluateCandidate(best, oppClampedLeft, oppClampedTop, oppCenterX, oppCenterY, cursorX, cursorY);
+      }
 
       // random sampling near the button (circle of radius up to maxSingleMove)
       const samples = 4;
@@ -288,41 +308,31 @@
         const r = Math.random() * maxSingleMove * (0.5 + Math.random() * 0.5);
         let candLeft = btnLeft + Math.cos(angle) * r;
         let candTop = btnTop + Math.sin(angle) * r;
-        candLeft = Math.max(minMargin, Math.min(candLeft, maxLeft));
-        candTop = Math.max(minMargin, Math.min(candTop, maxTop));
+        
+        // Clamp to safe zone strictly
+        candLeft = Math.max(safeMinLeft, Math.min(candLeft, safeMaxLeft));
+        candTop = Math.max(safeMinTop, Math.min(candTop, safeMaxTop));
         const centerX = candLeft + rect.width / 2;
         const centerY = candTop + rect.height / 2;
         best = evaluateCandidate(best, candLeft, candTop, centerX, centerY, cursorX, cursorY);
       }
 
-      // If best candidate doesn't increase distance enough, nudge perpendicular or move to opposite quadrant corner (small offset)
+      // Perpendicular nudge (still within safe zone)
       const currentDist = Math.hypot(btnCenterX - cursorX, btnCenterY - cursorY);
       if (best.dist <= currentDist + 6) {
-        // try small perpendicular nudge
         const dx = btnCenterX - cursorX;
         const dy = btnCenterY - cursorY;
         const len = Math.hypot(dx, dy) || 1;
         const px = -dy / len;
         const py = dx / len;
-        let nLeft = Math.max(minMargin, Math.min(btnLeft + px * 36, maxLeft));
-        let nTop = Math.max(minMargin, Math.min(btnTop + py * 36, maxTop));
+        let nLeft = Math.max(safeMinLeft, Math.min(btnLeft + px * 36, safeMaxLeft));
+        let nTop = Math.max(safeMinTop, Math.min(btnTop + py * 36, safeMaxTop));
         const nCenterX = nLeft + rect.width / 2;
         const nCenterY = nTop + rect.height / 2;
         best = evaluateCandidate(best, nLeft, nTop, nCenterX, nCenterY, cursorX, cursorY);
       }
 
-      if (best.dist <= currentDist + 6) {
-        // fallback: pick a corner away from cursor but not at the extreme edge
-        const preferRight = cursorX < window.innerWidth / 2;
-        const preferBottom = cursorY < window.innerHeight / 2;
-        const cornerLeft = preferRight ? maxLeft - 8 : minMargin + 8;
-        const cornerTop = preferBottom ? maxTop - 8 : minMargin + 8;
-        const cCenterX = cornerLeft + rect.width / 2;
-        const cCenterY = cornerTop + rect.height / 2;
-        best = evaluateCandidate(best, cornerLeft, cornerTop, cCenterX, cCenterY, cursorX, cursorY);
-      }
-
-      // Apply the chosen position
+      // Apply the chosen position (guaranteed to be in safe zone)
       noBtn.style.left = Math.round(best.left) + 'px';
       noBtn.style.top = Math.round(best.top) + 'px';
 
