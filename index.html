@@ -140,7 +140,7 @@
 </head>
 <body>
   <div class="container">
-    <h1 id="question">Anushka, Will You Be My Valentine? ❤️</h1>
+    <h1 id="question">Anushka Shukla, Will You Be My Valentine? ❤️</h1>
     <div class="buttons" id="buttonContainer">
       <button id="yesBtn">Yes 💘</button>
       <button id="noBtn">No 😜</button>
@@ -152,17 +152,17 @@
       
       <!-- Add your photos here (replace with your image paths) -->
       <div class="photos">
-        <img src="images/photo1.jpg" alt="Us">
-        <img src="images/photo2.jpg" alt="Together">
-        <img src="images/photo3.jpg" alt="Love">
+        <img src="images/2.jpg" alt="Us">
+        <img src="images/3.jpg" alt="Together">
+        <img src="images/4.jpg" alt="Love">
       </div>
 
       <!-- Cat image (place your attached cat image at images/cat.png) -->
-      <img id="catImage" class="cat-image hidden" src="images/cat.png" alt="Happy cat">
+      <img id="catImage" class="cat-image hidden" src="images/1.jpg" alt="Happy cat">
 
       <!-- Audio controls and placeholder file (replace audio/sample.mp3 later) -->
       <div id="audioControls" class="audio-controls hidden">
-        <audio id="bgm" src="audio/sample.mp3" preload="none"></audio>
+        <audio id="bgm" src="audio/soundd.mp3" preload="none"></audio>
         <button id="playAudioBtn">Play Music</button>
         <button id="pauseAudioBtn">Pause</button>
       </div>
@@ -183,6 +183,9 @@
     let attemptCount = 0;
     let lastMoveTime = 0;
     let mouseListenerActive = true;
+    let lastMoveDX = 0;
+    let lastMoveDY = 0;
+    let sameDirCount = 0;
 
     // Move No button when mouse gets close — improved: move away from cursor and clamp
     document.addEventListener('mousemove', (e) => {
@@ -198,7 +201,8 @@
       );
 
       // Progressive difficulty: detection radius increases with attempts
-      const detectionRadius = 120 + (attemptCount * 30);
+      // Much smaller reaction area so the button stays put until very close
+      const detectionRadius = 45 + (attemptCount * 1);
 
       if (distance < detectionRadius) {
         const now = Date.now();
@@ -211,12 +215,8 @@
     });
 
     function moveButtonAwayFrom(cursorX, cursorY) {
-      attemptCount = Math.min(attemptCount + 1, 20); // cap attempts
-
-      // Base move distance, scaled but capped to avoid huge jumps
-      const base = 90;
-      const scale = 12; // smaller scale per attempt
-      const moveDistance = Math.min(base + attemptCount * scale, Math.min(window.innerWidth, window.innerHeight) / 3);
+      // gentle attempt counter with high cap
+      attemptCount = Math.min(attemptCount + 1, 100);
 
       const rect = noBtn.getBoundingClientRect();
       const btnLeft = rect.left;
@@ -224,45 +224,92 @@
       const btnCenterX = btnLeft + rect.width / 2;
       const btnCenterY = btnTop + rect.height / 2;
 
-      // Direction vector from cursor to button
-      let dx = btnCenterX - cursorX;
-      let dy = btnCenterY - cursorY;
-      const len = Math.hypot(dx, dy) || 1;
-      dx /= len;
-      dy /= len;
+      // Maximum single-step movement (very small now: ~6-18px)
+      const maxSingleMove = Math.max(6, Math.min(18, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.015)));
 
-      // Proposed new top-left
-      let newLeft = btnLeft + dx * moveDistance;
-      let newTop = btnTop + dy * moveDistance;
-
+      // Sample candidate positions around the current position and pick the one that
+      // maximizes the distance to the cursor while staying within viewport margins.
       const minMargin = 12;
       const maxLeft = window.innerWidth - rect.width - minMargin;
       const maxTop = window.innerHeight - rect.height - minMargin;
 
-      // Clamp inside viewport
-      newLeft = Math.max(minMargin, Math.min(newLeft, maxLeft));
-      newTop = Math.max(minMargin, Math.min(newTop, maxTop));
+      let best = { left: btnLeft, top: btnTop, dist: Math.hypot(btnCenterX - cursorX, btnCenterY - cursorY) };
 
-      // If clamped result is still within a small distance to cursor, move to a safe corner instead
-      const centerAfterX = newLeft + rect.width / 2;
-      const centerAfterY = newTop + rect.height / 2;
-      const distAfter = Math.hypot(centerAfterX - cursorX, centerAfterY - cursorY);
-      const safeDistance = 140 + attemptCount * 10;
-      if (distAfter < safeDistance) {
-        // choose corner away from cursor
-        const preferRight = cursorX < window.innerWidth / 2;
-        const preferBottom = cursorY < window.innerHeight / 2;
-        newLeft = preferRight ? maxLeft : minMargin;
-        newTop = preferBottom ? maxTop : minMargin;
+      // start with an opposite-vector candidate (away from cursor)
+      let awayDX = (btnCenterX - cursorX) || (Math.random() - 0.5);
+      let awayDY = (btnCenterY - cursorY) || (Math.random() - 0.5);
+      const awayLen = Math.hypot(awayDX, awayDY) || 1;
+      awayDX /= awayLen; awayDY /= awayLen;
+      const oppositeLeft = btnLeft + awayDX * maxSingleMove;
+      const oppositeTop = btnTop + awayDY * maxSingleMove;
+      const oppClampedLeft = Math.max(minMargin, Math.min(oppositeLeft, maxLeft));
+      const oppClampedTop = Math.max(minMargin, Math.min(oppositeTop, maxTop));
+      const oppCenterX = oppClampedLeft + rect.width / 2;
+      const oppCenterY = oppClampedTop + rect.height / 2;
+      best = evaluateCandidate(best, oppClampedLeft, oppClampedTop, oppCenterX, oppCenterY, cursorX, cursorY);
+
+      // random sampling near the button (circle of radius up to maxSingleMove)
+      const samples = 8;
+      for (let i = 0; i < samples; i++) {
+        const angle = (i / samples) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const r = Math.random() * maxSingleMove * (0.5 + Math.random() * 0.5);
+        let candLeft = btnLeft + Math.cos(angle) * r;
+        let candTop = btnTop + Math.sin(angle) * r;
+        candLeft = Math.max(minMargin, Math.min(candLeft, maxLeft));
+        candTop = Math.max(minMargin, Math.min(candTop, maxTop));
+        const centerX = candLeft + rect.width / 2;
+        const centerY = candTop + rect.height / 2;
+        best = evaluateCandidate(best, candLeft, candTop, centerX, centerY, cursorX, cursorY);
       }
 
-      noBtn.style.left = Math.round(newLeft) + 'px';
-      noBtn.style.top = Math.round(newTop) + 'px';
+      // If best candidate doesn't increase distance enough, nudge perpendicular or move to opposite quadrant corner (small offset)
+      const currentDist = Math.hypot(btnCenterX - cursorX, btnCenterY - cursorY);
+      if (best.dist <= currentDist + 6) {
+        // try small perpendicular nudge
+        const dx = btnCenterX - cursorX;
+        const dy = btnCenterY - cursorY;
+        const len = Math.hypot(dx, dy) || 1;
+        const px = -dy / len;
+        const py = dx / len;
+        let nLeft = Math.max(minMargin, Math.min(btnLeft + px * 36, maxLeft));
+        let nTop = Math.max(minMargin, Math.min(btnTop + py * 36, maxTop));
+        const nCenterX = nLeft + rect.width / 2;
+        const nCenterY = nTop + rect.height / 2;
+        best = evaluateCandidate(best, nLeft, nTop, nCenterX, nCenterY, cursorX, cursorY);
+      }
 
-      // Update button text to show difficulty level
+      if (best.dist <= currentDist + 6) {
+        // fallback: pick a corner away from cursor but not at the extreme edge
+        const preferRight = cursorX < window.innerWidth / 2;
+        const preferBottom = cursorY < window.innerHeight / 2;
+        const cornerLeft = preferRight ? maxLeft - 8 : minMargin + 8;
+        const cornerTop = preferBottom ? maxTop - 8 : minMargin + 8;
+        const cCenterX = cornerLeft + rect.width / 2;
+        const cCenterY = cornerTop + rect.height / 2;
+        best = evaluateCandidate(best, cornerLeft, cornerTop, cCenterX, cCenterY, cursorX, cursorY);
+      }
+
+      // Apply the chosen position
+      noBtn.style.left = Math.round(best.left) + 'px';
+      noBtn.style.top = Math.round(best.top) + 'px';
+
+      // store last move direction for diagnostics
+      lastMoveDX = (best.left + rect.width / 2) - btnCenterX;
+      lastMoveDY = (best.top + rect.height / 2) - btnCenterY;
+
+      // Update button text slowly
       const difficultyEmojis = ['😜', '🤨', '😤', '😠', '🤯'];
-      const emojiIndex = Math.min(attemptCount - 1, difficultyEmojis.length - 1);
+      const emojiIndex = Math.min(Math.floor(attemptCount / 6), difficultyEmojis.length - 1);
       noBtn.innerText = `No ${difficultyEmojis[emojiIndex]}`;
+    }
+
+    function evaluateCandidate(best, candLeft, candTop, centerX, centerY, cursorX, cursorY) {
+      const d = Math.hypot(centerX - cursorX, centerY - cursorY);
+      // prefer candidates that increase distance from cursor
+      if (d > best.dist + 4) {
+        return { left: candLeft, top: candTop, dist: d };
+      }
+      return best;
     }
 
     // Yes button click
@@ -276,12 +323,14 @@
       catImage.classList.remove('hidden');
       audioControls.classList.remove('hidden');
 
-      // Try to play audio (user gesture from click should allow play)
+      // Start and loop bgm if present. Use user gesture (click) to allow playback.
       try {
         if (bgm && bgm.src) {
+          bgm.loop = true;
+          bgm.preload = 'auto';
+          try { bgm.currentTime = 0; } catch(e) {}
           await bgm.play();
         } else {
-          // If no audio file present, play a small WebAudio melody as fallback
           playFallbackMelody();
         }
       } catch (err) {
